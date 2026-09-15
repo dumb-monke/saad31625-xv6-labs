@@ -182,6 +182,8 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
 
+UEXTRA=sixfive_file.txt
+
 UPROGS=\
 	$U/_cat\
 	$U/_echo\
@@ -203,9 +205,10 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_sync\
-
-
-
+	$U/_sleep\
+	$U/_sixfive\
+	$U/_memdump\
+	$U/_find\
 
 ifeq ($(LAB),syscall)
 UPROGS += \
