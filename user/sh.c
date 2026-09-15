@@ -1,6 +1,7 @@
 // Shell.
-
 #include "kernel/types.h"
+#include "kernel/stat.h"
+#include "kernel/fs.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
 
@@ -10,8 +11,23 @@
 #define PIPE  3
 #define LIST  4
 #define BACK  5
+#define DIRSIZ 14
 
 #define MAXARGS 10
+
+
+
+#define HISTORY_SIZE 10
+#define HISTORY_CMD_SIZE 100
+
+char history[HISTORY_SIZE][HISTORY_CMD_SIZE];
+int history_count = 0;
+void show_history(void);
+void save_history(char *);
+
+
+
+
 
 struct cmd {
   int type;
@@ -48,6 +64,8 @@ struct backcmd {
   int type;
   struct cmd *cmd;
 };
+
+void complete(char *);
 
 int fork1(void); // Fork but panics on failure.
 void panic(char *);
@@ -131,14 +149,141 @@ runcmd(struct cmd *cmd)
   exit(0);
 }
 
+void
+complete(char *buf)
+{
+  int fd;
+  struct dirent de;
+  char name[DIRSIZ + 1];
+  char *prefix;
+  char *p;
+  int prefix_len;
+  int matches = 0;
+  char match[DIRSIZ + 1];
+
+  // Find the beginning of the last word.
+  prefix = buf;
+
+  for (p = buf; *p; p++) {
+    if (*p == ' ' || *p == '\t')
+      prefix = p + 1;
+  }
+
+  if (*prefix == 0)
+    return;
+
+  prefix_len = strlen(prefix);
+
+  fd = open(".", 0);
+  if (fd < 0)
+    return;
+
+  while (read(fd, &de, sizeof(de)) == sizeof(de)) {
+    if (de.inum == 0)
+      continue;
+
+    memmove(name, de.name, DIRSIZ);
+    name[DIRSIZ] = 0;
+
+    if (memcmp(name, prefix, prefix_len) == 0) {
+      matches++;
+
+      if (matches == 1) {
+        strcpy(match, name);
+      }
+    }
+  }
+
+  close(fd);
+
+  // Only complete when there is exactly one match.
+  if (matches == 1) {
+    int remaining = strlen(match) - prefix_len;
+
+    if (remaining > 0) {
+      write(2, match + prefix_len, remaining);
+
+      memmove(prefix + prefix_len,
+              match + prefix_len,
+              remaining + 1);
+    }
+  }
+}
+
+
+
+void
+show_history(void)
+{
+  int i;
+
+  for (i = 0; i < history_count; i++)
+    printf("%d %s", i + 1, history[i]);
+}
+
+
+
+void
+save_history(char *cmd)
+{
+  int i;
+
+  if (cmd[0] == '\0')
+    return;
+
+  if (history_count < HISTORY_SIZE) {
+    strcpy(history[history_count], cmd);
+    history_count++;
+  } else {
+    for (i = 1; i < HISTORY_SIZE; i++)
+      strcpy(history[i - 1], history[i]);
+
+    strcpy(history[HISTORY_SIZE - 1], cmd);
+  }
+}
+
+
+
+
+
+
 int
 getcmd(char *buf, int nbuf)
 {
-  write(2, "$ ", 2);
+  struct stat st;
+  int i, cc;
+  char c;
+
+  if (fstat(0, &st) >= 0 && st.type == T_DEVICE && st.dev == 1)
+    write(2, "$ ", 2);
+
   memset(buf, 0, nbuf);
-  gets(buf, nbuf);
-  if (buf[0] == 0) // EOF
+
+  for (i = 0; i + 1 < nbuf;) {
+    cc = read(0, &c, 1);
+    if (cc < 1)
+      break;
+
+    if (c == '\n' || c == '\r') {
+      buf[i++] = '\n';
+      break;
+    }
+
+    if (c == '\t') {
+      buf[i] = '\0';
+      complete(buf);
+      i = strlen(buf);
+      continue;
+    }
+
+    buf[i++] = c;
+  }
+
+  buf[i] = '\0';
+
+  if (buf[0] == 0)
     return -1;
+
   return 0;
 }
 
@@ -157,7 +302,8 @@ main(void)
   }
 
   // Read and run input commands.
-  while (getcmd(buf, sizeof(buf)) >= 0) {
+    while (getcmd(buf, sizeof(buf)) >= 0) {
+    save_history(buf);
     char *cmd = buf;
     while (*cmd == ' ' || *cmd == '\t')
       cmd++;
@@ -168,7 +314,11 @@ main(void)
       cmd[strlen(cmd) - 1] = 0; // chop \n
       if (chdir(cmd + 3) < 0)
         fprintf(2, "cannot cd %s\n", cmd + 3);
-    } else {
+    } else if (strcmp(cmd, "wait\n") == 0) {
+      wait(0);
+    }  else if (strcmp(buf, "history\n") == 0) {
+  show_history();
+} else {
       if (fork1() == 0)
         runcmd(parsecmd(cmd));
       wait(0);

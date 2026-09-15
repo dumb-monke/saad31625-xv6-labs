@@ -166,24 +166,38 @@ consoleintr(int c)
       consputc(BACKSPACE);
     }
     break;
-  default:
-    if (c != 0 && cons.e - cons.r < INPUT_BUF_SIZE) {
-      c = (c == '\r') ? '\n' : c;
+case '\t':
+  if (cons.e - cons.r < INPUT_BUF_SIZE) {
+    cons.buf[cons.e++ % INPUT_BUF_SIZE] = '\t';
+    cons.w = cons.e;
+    wakeup(&cons.r);
+  }
+  break;
+default:
+  if (c != 0 && cons.e - cons.r < INPUT_BUF_SIZE) {
+    c = (c == '\r') ? '\n' : c;
 
-      // echo back to the user.
-      consputc(c);
-
-      // store for consumption by consoleread().
+    if (c == '\t') {
+      // Store Tab for the shell, but don't echo it.
       cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
-
-      if (c == '\n' || c == C('D') || cons.e - cons.r == INPUT_BUF_SIZE) {
-        // wake up consoleread() if a whole line (or end-of-file)
-        // has arrived.
-        cons.w = cons.e;
-        wakeup(&cons.r);
-      }
+      cons.w = cons.e;
+      wakeup(&cons.r);
+      break;
     }
-    break;
+
+    // echo back to the user.
+    consputc(c);
+
+    // store for consumption by consoleread().
+    cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+
+    if (c == '\n' || c == C('D') ||
+        cons.e - cons.r == INPUT_BUF_SIZE) {
+      cons.w = cons.e;
+      wakeup(&cons.r);
+    }
+  }
+  break;
   }
 
   release(&cons.lock);

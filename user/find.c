@@ -1,11 +1,54 @@
-#include "kernel/param.h"
+
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fs.h"
 
+
+int match(char *re, char *text);
+int matchhere(char *re, char *text);
+int matchstar(int c, char *re, char *text);
+
+
+
+int
+match(char *re, char *text)
+{
+    if (re[0] == '^')
+        return matchhere(re + 1, text);
+    do {
+        if (matchhere(re, text))
+            return 1;
+    } while (*text++ != '\0');
+    return 0;
+}
+
+int
+matchhere(char *re, char *text)
+{
+    if (re[0] == '\0')
+        return 1;
+    if (re[1] == '*')
+        return matchstar(re[0], re + 2, text);
+    if (re[0] == '$' && re[1] == '\0')
+        return *text == '\0';
+    if (*text != '\0' && (re[0] == '.' || re[0] == *text))
+        return matchhere(re + 1, text + 1);
+    return 0;
+}
+
+int
+matchstar(int c, char *re, char *text)
+{
+    do {
+        if (matchhere(re, text))
+            return 1;
+    } while (*text != '\0' && (*text++ == c || c == '.'));
+    return 0;
+}
+
 void
-find(char *path, char *target, int exec_mode, char *cmd, char **cmdargs)
+find(char *path, char *target)
 {
     char buf[512], *p;
     int fd;
@@ -24,7 +67,6 @@ find(char *path, char *target, int exec_mode, char *cmd, char **cmdargs)
     }
 
     if (st.type == T_FILE) {
-        close(fd);
         return;
     }
 
@@ -53,40 +95,14 @@ find(char *path, char *target, int exec_mode, char *cmd, char **cmdargs)
         if (strcmp(p, ".") == 0 || strcmp(p, "..") == 0)
             continue;
 
-        if (strcmp(p, target) == 0) {
-            if (exec_mode) {
-                int pid = fork();
-
-                if (pid == 0) {
-                    char *args[MAXARG];
-                    int i = 0;
-
-                    while (cmdargs[i] != 0) {
-                        args[i] = cmdargs[i];
-                        i++;
-                    }
-
-                    args[i] = buf;
-                    args[i + 1] = 0;
-
-                    exec(cmd, args);
-
-                    fprintf(2, "find: exec %s failed\n", cmd);
-                    exit(1);
-                }
-
-                if (pid > 0)
-                    wait(0);
-            } else {
-                printf("%s\n", buf);
-            }
-        }
+        if (match(target, p))
+            printf("%s\n", buf);
 
         if (stat(buf, &st) < 0)
             continue;
 
         if (st.type == T_DIR)
-            find(buf, target, exec_mode, cmd, cmdargs);
+            find(buf, target);
     }
 
     close(fd);
@@ -95,27 +111,12 @@ find(char *path, char *target, int exec_mode, char *cmd, char **cmdargs)
 int
 main(int argc, char *argv[])
 {
-    int exec_mode = 0;
-    char *cmd = 0;
-    char **cmdargs = 0;
-
-    if (argc < 3) {
-        fprintf(2, "usage: find path name [-exec cmd [args...]]\n");
+    if (argc != 3) {
+        fprintf(2, "usage: find path name\n");
         exit(1);
     }
 
-    if (argc >= 4) {
-        if (strcmp(argv[3], "-exec") != 0 || argc < 5) {
-            fprintf(2, "usage: find path name [-exec cmd [args...]]\n");
-            exit(1);
-        }
-
-        exec_mode = 1;
-        cmd = argv[4];
-        cmdargs = &argv[4];
-    }
-
-    find(argv[1], argv[2], exec_mode, cmd, cmdargs);
-
+    find(argv[1], argv[2]);
     exit(0);
 }
+
