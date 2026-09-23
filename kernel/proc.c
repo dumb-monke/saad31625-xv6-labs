@@ -125,7 +125,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->syscall_mask = 0;
-
+  p->allowed_path[0] = '\0';
+  
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
     freeproc(p);
@@ -276,6 +277,8 @@ kfork(void)
   }
   np->sz = p->sz;
   np->syscall_mask = p->syscall_mask;
+  safestrcpy(np->allowed_path, p->allowed_path,
+           sizeof(np->allowed_path));
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);

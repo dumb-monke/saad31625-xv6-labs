@@ -114,13 +114,15 @@ sys_uptime(void)
 uint64
 sys_interpose(void)
 {
-  int mask;
-  char path[16];
+int mask;
+  char path[MAXPATH];
 
   argint(0, &mask);
   argstr(1, path, sizeof(path));
 
   myproc()->syscall_mask = mask;
+  safestrcpy(myproc()->allowed_path, path,
+             sizeof(myproc()->allowed_path));
 
   return 0;
 }
