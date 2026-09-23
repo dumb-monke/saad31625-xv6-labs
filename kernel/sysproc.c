@@ -114,15 +114,40 @@ sys_uptime(void)
 uint64
 sys_interpose(void)
 {
-int mask;
+  int mask;
   char path[MAXPATH];
+  struct proc *p = myproc();
 
   argint(0, &mask);
-  argstr(1, path, sizeof(path));
 
-  myproc()->syscall_mask = mask;
-  safestrcpy(myproc()->allowed_path, path,
-             sizeof(myproc()->allowed_path));
+  if (argstr(1, path, sizeof(path)) < 0)
+    return -1;
+
+  // A process cannot remove an existing syscall restriction.
+  if ((p->syscall_mask & ~mask) != 0)
+    return -1;
+
+  // A process cannot remove or change an existing path restriction.
+  if (p->allowed_path[0] != '\0') {
+    int same = 1;
+    int i;
+
+    for (i = 0;
+         path[i] != '\0' || p->allowed_path[i] != '\0';
+         i++) {
+      if (path[i] != p->allowed_path[i]) {
+        same = 0;
+        break;
+      }
+    }
+
+    if (!same)
+      return -1;
+  }
+
+  p->syscall_mask = mask;
+  safestrcpy(p->allowed_path, path,
+             sizeof(p->allowed_path));
 
   return 0;
 }

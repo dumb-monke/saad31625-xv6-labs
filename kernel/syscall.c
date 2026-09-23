@@ -145,39 +145,45 @@ syscall(void)
 
   if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
 
-    if (p->syscall_mask & (1 << num)) {
+    // If this is open or exec, check the path restriction first.
+    if ((num == SYS_open || num == SYS_exec) &&
+        p->allowed_path[0] != '\0') {
 
-      if (num == SYS_open || num == SYS_exec) {
-        char path[MAXPATH];
+      char path[MAXPATH];
+      int same = 1;
+      int i;
 
-        if (argstr(0, path, MAXPATH) >= 0) {
-          int same = 1;
-          int i;
+      if (argstr(0, path, MAXPATH) < 0) {
+        p->trapframe->a0 = -1;
+        return;
+      }
 
-          for (i = 0;
-               path[i] != '\0' || p->allowed_path[i] != '\0';
-               i++) {
-            if (path[i] != p->allowed_path[i]) {
-              same = 0;
-              break;
-            }
-          }
-
-          if (same) {
-            p->trapframe->a0 = syscalls[num]();
-            return;
-          }
+      for (i = 0;
+           path[i] != '\0' || p->allowed_path[i] != '\0';
+           i++) {
+        if (path[i] != p->allowed_path[i]) {
+          same = 0;
+          break;
         }
       }
 
-      p->trapframe->a0 = -1;
-
-    } else {
-      p->trapframe->a0 = syscalls[num]();
+      if (same) {
+        p->trapframe->a0 = syscalls[num]();
+        return;
+      }
     }
 
+    // Anything masked and not explicitly allowed above is denied.
+    if (p->syscall_mask & (1 << num)) {
+      p->trapframe->a0 = -1;
+      return;
+    }
+
+    p->trapframe->a0 = syscalls[num]();
+
   } else {
-    printk("%d %s: unknown sys call %d\n", p->pid, p->name, num);
+    printk("%d %s: unknown sys call %d\n",
+           p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
 }

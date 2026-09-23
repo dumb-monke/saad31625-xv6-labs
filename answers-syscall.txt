@@ -1,0 +1,44 @@
+Q1
+Ans usertrap() called syscall().
+Q2
+Ans p->trapframe->a7 is 17 (0x11). It represents the system call number. In kernel/syscall.h, syscall number 17 corresponds to mknod.
+Q3
+Ans.The previous CPU mode was User mode. The SPP bit in sstatus is 0, which indicates that the trap came from User mode.
+Q4
+Ans.The instruction at sepc 0x80001d7a is:
+
+   lw a3,0(zero)
+
+   This instruction attempts to load a word from address 0 into register a3.
+   Since the zero register contains 0, the instruction accesses memory address 0.
+   Register a3 corresponds to the C variable num. Address 0 is not mapped in
+   the kernel's address space, causing a load page fault. This is confirmed by
+   scause=0xd and stval=0x0.
+   The kernel crashes because num = *(int *)0 attempts to read an integer
+   from virtual address 0. Address 0 is not mapped in the kernel address
+   space, so the memory access causes a page fault. scause=0xd confirms that
+   the exception is a load page fault, and stval=0x0 shows that the invalid
+   address was 0. The faulting instruction is at sepc=0x80001d7a.
+
+   The instruction at 0x80001d7a is:
+       lw a3,0(zero)
+
+   Since the zero register contains 0, this instruction attempts to load a
+   word from address 0 into register a3, which corresponds to the variable
+   num.
+
+   The process running when the panic occurred was init, with PID 1.
+   
+   Q5
+5. GDB stopped at 0x80001d7a and displayed:
+       lw a3,0(zero)
+   confirming that this is the instruction that caused the page fault.
+   
+   Q.Why does the kernel crash? Is address 0 mapped in the kernel address space? Is scause=0xd confirming this?
+   The answer is:
+
+num = *(int *)0 tells the CPU to read from virtual address 0.
+Address 0 is not mapped in the kernel's address space.
+Therefore, the memory read causes a page fault.
+scause = 0xd means load page fault, confirming that the crash was caused by an invalid memory read.
+stval = 0x0 tells us the problematic address was 0.
