@@ -42,3 +42,30 @@ Address 0 is not mapped in the kernel's address space.
 Therefore, the memory read causes a page fault.
 scause = 0xd means load page fault, confirming that the crash was caused by an invalid memory read.
 stval = 0x0 tells us the problematic address was 0.
+
+
+
+## Optional Challenge: Sandbox Escape
+
+I found a bug in the implementation of the `interpose` system call that allowed a sandboxed process to weaken or remove its own sandbox restrictions.
+
+The bug was that `sys_interpose()` directly replaced the process's existing `syscall_mask` and `allowed_path` with the values supplied by the process. Therefore, a process that had been sandboxed with a restricted system-call mask could call `interpose()` again with a mask of `0` and remove the restriction.
+
+For example, a process initially sandboxed with:
+
+```text
+mask = 1 << SYS_open
+```
+
+could attempt:
+
+```c
+interpose(0, "README");
+```
+
+This replaced the original mask with `0`, allowing the process to call `open()` and escape the intended sandbox.
+
+I fixed the bug by preventing `interpose()` from removing existing syscall restrictions or changing an existing path restriction. A new sandbox configuration can only preserve or add restrictions; it cannot make the process less restricted.
+
+This was confirmed by the `sandbox_escape` test, which now passes.
+
