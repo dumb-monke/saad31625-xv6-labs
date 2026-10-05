@@ -251,6 +251,9 @@ vmprint_helper(pagetable_t pagetable, int depth, int level, uint64 va)
       printk(" X");
     if(pte & PTE_U)
       printk(" U");
+      
+    if(level == 1 && PTE_LEAF(pte))
+      printk(" SUPERPAGE");
 
     printk("\n");
 
