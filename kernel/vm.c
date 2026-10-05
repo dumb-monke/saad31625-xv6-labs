@@ -18,6 +18,68 @@ extern char etext[]; // kernel.ld sets this to end of kernel code.
 extern char trampoline[]; // trampoline.S
 
 // Make a direct-map page table for the kernel.
+void
+supermappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
+{
+  uint64 a, last;
+  pte_t *pte;
+
+  if ((va % SUPERPGSIZE) != 0)
+    panic("supermappages: va not aligned");
+
+  if ((pa % SUPERPGSIZE) != 0)
+    panic("supermappages: pa not aligned");
+
+  if ((size % SUPERPGSIZE) != 0)
+    panic("supermappages: size not aligned");
+
+  if (size == 0)
+    panic("supermappages: size");
+
+  a = va;
+  last = va + size - SUPERPGSIZE;
+
+  for (;;) {
+    // Get the level-1 PTE.
+    pagetable_t l2 = pagetable;
+    pte_t *pte2 = &l2[PX(2, a)];
+
+    if (!(*pte2 & PTE_V)) {
+      pagetable_t l1 = (pagetable_t)kalloc();
+      if (l1 == 0)
+        panic("supermappages: kalloc");
+
+      memset(l1, 0, PGSIZE);
+      *pte2 = PA2PTE(l1) | PTE_V;
+    }
+
+    pagetable_t l1 = (pagetable_t)PTE2PA(*pte2);
+    pte = &l1[PX(1, a)];
+
+    if (*pte & PTE_V)
+      panic("supermappages: remap");
+
+    *pte = PA2PTE(pa) | perm | PTE_V;
+
+    if (a == last)
+      break;
+
+    a += SUPERPGSIZE;
+    pa += SUPERPGSIZE;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 pagetable_t
 kvmmake(void)
 {
@@ -46,15 +108,28 @@ kvmmake(void)
 #endif
 
   // PLIC
-  kvmmap(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
+supermappages(kpgtbl, PLIC, 0x4000000, PLIC, PTE_R | PTE_W);
 
   // map kernel text executable and read-only.
   kvmmap(kpgtbl, KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
 
   // map kernel data and the physical RAM we'll make use of.
-  kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP - (uint64)etext,
+uint64 ram_start = (uint64)etext;
+uint64 super_start = SUPERPGROUNDUP(ram_start);
+uint64 super_end = SUPERPGROUNDDOWN(PHYSTOP);
+
+if (super_start > ram_start)
+  kvmmap(kpgtbl, ram_start, ram_start, super_start - ram_start,
          PTE_R | PTE_W);
 
+if (super_end > super_start)
+  supermappages(kpgtbl, super_start, super_end - super_start,
+                super_start, PTE_R | PTE_W);
+
+if (super_end < PHYSTOP) {
+  kvmmap(kpgtbl, super_end, super_end, PHYSTOP - super_end,
+         PTE_R | PTE_W);
+}
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
