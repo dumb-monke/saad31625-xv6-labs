@@ -1,0 +1,396 @@
+Task 1
+
+VA   = Virtual Address
+PTE  = Page Table Entry
+PA   = Physical Address
+perm = Permission/flag bits
+
+A page-table entry logically contains the physical page number that the
+virtual page maps to, together with flags that specify how the page can be
+accessed.
+
+The relevant RISC-V PTE flags are:
+
+V = Valid
+R = Read
+W = Write
+X = Execute
+U = User
+G = Global
+A = Accessed
+D = Dirty
+
+
+1. va 0x0
+
+pte 0x21FC885B
+pa  0x87F22000
+perm 0x5B
+
+0x5B has:
+
+V = 1
+R = 1
+W = 0
+X = 1
+U = 1
+
+Therefore, this page is valid, readable, executable, and accessible from
+user mode, but it is not writable.
+
+This is a user program code/text page.
+
+
+2. va 0x1000
+
+pte 0x21FC7C1B
+pa  0x87F1F000
+perm 0x1B
+
+0x1B has:
+
+V = 1
+R = 1
+W = 0
+X = 1
+U = 1
+
+Therefore, this page is valid, readable, executable, and accessible from
+user mode, but it is not writable.
+
+This is another user executable/code page.
+
+
+3. va 0x2000
+
+pte 0x21FC7817
+pa  0x87F1E000
+perm 0x17
+
+0x17 has:
+
+V = 1
+R = 1
+W = 1
+X = 0
+U = 1
+
+Therefore, this page is valid, readable, writable, not executable, and
+accessible from user mode.
+
+This is a user read/write data page.
+
+
+4. va 0x3000
+
+pte 0x21FC7407
+pa  0x87F1D000
+perm 0x07
+
+0x07 has:
+
+V = 1
+R = 1
+W = 1
+X = 0
+U = 0
+
+Therefore, this page is valid, readable, and writable, but it is not
+executable and is not accessible from user mode.
+
+The U bit being 0 means that this is a kernel-only page.
+
+
+5. va 0x4000
+
+pte 0x21FC70D7
+pa  0x87F1C000
+perm 0xD7
+
+0xD7 has:
+
+V = 1
+R = 1
+W = 1
+X = 0
+U = 1
+A = 1
+D = 1
+
+Therefore, this page is valid, readable, writable, not executable, and
+accessible from user mode. The Accessed and Dirty bits are also set.
+
+This is a user read/write page.
+
+
+6. va 0x5000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+There is no valid PTE for this virtual page, so it is unmapped.
+
+
+7. va 0x6000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+8. va 0x7000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+9. va 0x8000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+10. va 0x9000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+11. va 0x3FFFFF6000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+12. va 0x3FFFFF7000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+13. va 0x3FFFFF8000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+14. va 0x3FFFFF9000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+15. va 0x3FFFFFA000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+16. va 0x3FFFFFB000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+17. va 0x3FFFFFC000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+18. va 0x3FFFFFD000
+
+pte 0x0
+pa  0x0
+perm 0x0
+
+This virtual page is unmapped.
+
+
+19. va 0x3FFFFFE000
+
+pte 0x21FD08C7
+pa  0x87F42000
+perm 0xC7
+
+0xC7 has:
+
+V = 1
+R = 1
+W = 1
+X = 0
+U = 0
+A = 1
+D = 1
+
+Therefore, this page is valid, readable, writable, not executable, and not
+accessible from user mode.
+
+This is the trapframe page. The trapframe stores the process's saved
+register/CPU state during transitions between user mode and kernel mode.
+
+
+20. va 0x3FFFFFF000
+
+pte 0x2000184B
+pa  0x80006000
+perm 0x4B
+
+0x4B has:
+
+V = 1
+R = 1
+W = 0
+X = 1
+U = 0
+
+Therefore, this page is valid, readable, executable, not writable, and not
+accessible from user mode.
+
+This is the trampoline page. The trampoline contains code used during
+transitions between user mode and kernel mode.
+
+
+Summary
+
+The page table maps virtual pages to physical pages and also specifies the
+permissions for each page.
+
+For example:
+
+VA 0x0      -> PA 0x87F22000
+VA 0x1000   -> PA 0x87F1F000
+VA 0x2000   -> PA 0x87F1E000
+
+The virtual pages are consecutive, but their physical addresses do not have
+to be consecutive. This is because xv6 allocates physical pages wherever
+free physical memory is available.
+
+The important high-address mappings are:
+
+0x3FFFFFE000 -> 0x87F42000
+                Trapframe
+
+0x3FFFFFF000 -> 0x80006000
+                Trampoline
+
+The unmapped pages have PTE = 0, PA = 0, and perm = 0.
+
+The main idea is:
+
+Virtual Address
+      |
+      v
+  Page Table
+      |
+      v
+Physical Address
+
+The PTE therefore provides both the physical-page mapping and the
+permissions/flags controlling access to that page.
+
+
+Task 2
+### Leaf pages
+
+The leaf pages in the `vmprint` output are the entries that have the `R`, `W`, or `X` permission bits set. These entries map virtual addresses directly to physical pages.
+
+* **VA `0x0` → PA `0x87F22000`, permissions `RXU`**
+  This page contains the program's executable code. `R` allows the user process to read the page, `X` allows it to execute instructions, and `U` allows user-mode access. `W` is not set, so the page cannot be written by the user. This corresponds directly to the `print_pgtbl()` entry for `va 0x0`, which has `perm 0x5B`.
+
+* **VA `0x1000` → PA `0x87F1F000`, permissions `RXU`**
+  This page also contains executable program code. It can be read and executed by the user but cannot be written. It corresponds to the `print_pgtbl()` entry for `va 0x1000`, with `perm 0x1B`.
+
+* **VA `0x2000` → PA `0x87F1E000`, permissions `RWU`**
+  This page contains writable user data. The user process can read from and write to it, but it cannot execute instructions from this page because `X` is not set. It corresponds to `print_pgtbl()`'s `va 0x2000`, with `perm 0x17`.
+
+* **VA `0x3000` → PA `0x87F1D000`, permissions `RW`**
+  This page is writable and readable but does not have the `U` bit set, so it is not accessible from user mode. It can therefore be accessed by the kernel but not directly by the user process. It corresponds to `print_pgtbl()`'s `va 0x3000`, with `perm 0x07`.
+
+* **VA `0x4000` → PA `0x87F1C000`, permissions `RWU`**
+  This is another writable user page. The user can read and write it, but cannot execute it because `X` is not set. It corresponds to `print_pgtbl()`'s `va 0x4000`, with `perm 0xD7`.
+
+* **VA `0x3FFFFFE000` → PA `0x87F54000`, permissions `RW`**
+  This is the **trapframe page**. It is readable and writable by the kernel but does not have `U`, so user code cannot access it. It corresponds to the `print_pgtbl()` entry for `va 0x3FFFFFE000`, which has `perm 0xC7`.
+
+* **VA `0x3FFFFFF000` → PA `0x80006000`, permissions `RX`**
+  This is the **trampoline page**. It contains the code used when switching between user mode and the kernel. It is readable and executable but does not have `U`, so user code cannot directly access it. It corresponds to the `print_pgtbl()` entry for `va 0x3FFFFFF000`, with `perm 0x4B`.
+
+### Relationship with `print_pgtbl()`
+
+The two outputs describe the same leaf mappings in different ways. `print_pgtbl()` directly looks up selected virtual addresses and prints their PTE, physical address, and permission bits. `vmprint()` walks the complete page-table hierarchy and eventually reaches those same leaf PTEs.
+
+For example:
+
+```text
+print_pgtbl:
+va 0x0
+pte 0x21FC885B
+pa 0x87F22000
+perm 0x5B
+```
+
+appears in `vmprint()` as:
+
+```text
+.. ..0x0000000000000000:
+pte 0x0000000021fc885b
+pa 0x0000000087f22000
+RXU
+```
+
+Thus, `print_pgtbl()` shows the mapping directly, while `vmprint()` shows how the page-table levels lead to that mapping.
+
+
+task 4
+The `uptime()` system call could also be made faster by using the shared page. The kernel could store the current number of ticks in the read-only shared page. When a user program needs the uptime, it could read the tick value directly from this page instead of making a system call. This would avoid the user-to-kernel transition and make `uptime()` faster.
+
+task 5
+Kernel RAM:
+126 MiB / 2 MiB = 63 superpages
+
+PLIC:
+64 MiB / 2 MiB = 32 superpages
+
+Total:
+63 + 32 = 95 superpage PTEs
+
+Each bottom-level page table:
+512 PTEs × 4 KiB = 2 MiB
+
+Therefore:
+95 bottom-level page-table pages saved
+
