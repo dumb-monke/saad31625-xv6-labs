@@ -1,0 +1,38 @@
+ 1. Which registers contain the arguments? Which register contains 13?
+
+In RISC-V, the first eight integer arguments are passed in registers a0–a7. In main, the arguments for printf are placed in a0, a1, and a2. The value 13 is stored in a2
+
+2. Where are the calls to f() and g() in main? Why are they missing?
+
+There are no calls to f() or g() in main because the compiler optimized the calculations. It replaced f(8) + 1 with the value 12. The call to g() inside f() was also optimized into the addition instruction addiw a0,a0,3.
+
+3. What is the address of printf?
+
+The call instruction is at address 0x38, and it jumps to printf at address 0x746.
+
+4. What value is stored in ra after the call to printf in main?
+
+The return address is 0x3c, which is the address of the instruction immediately after the call.
+
+5. What is the output of the given code, and what changes on a big-endian system?
+unsigned int i = 0x00646c72;
+printf("H%x Wo%s", 57616, (char *)&i);
+
+
+The output on a little-endian system is:
+He110 World
+
+
+The integer 57616 is printed in hexadecimal as e110. The bytes of i appear in memory as 72 6c 64 00, which represent "rld" followed by the null terminator.
+
+On a big-endian system, use:
+unsigned int i = 0x726c6400;
+
+
+The output remains the same. The value 57616 does not change because %x formats the integer in hexadecimal; endianness affects how its bytes are stored in memory.
+
+What is printed after y= in this statement, and why?
+printf("x=%d y=%d", 3);
+
+
+The value after y= is unpredictable because the format string expects two integer arguments, but only one is provided. This causes undefined behavior in C.
