@@ -359,6 +359,16 @@ r_ra()
   return x;
 }
 
+
+static inline uint64
+r_fp()
+{
+  uint64 x;
+  asm volatile("mv %0, s0" : "=r" (x) );
+  return x;
+}
+
+
 // flush the TLB.
 static inline void
 sfence_vma()
@@ -384,6 +394,7 @@ icache_fence()
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
 
+
 #endif // __ASSEMBLER__
 
 #define PGSIZE  4096 // bytes per page
@@ -397,6 +408,7 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #define PTE_W (1L << 2)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // user can access
+#define PTE_COW (1L << 8)
 
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
