@@ -417,12 +417,14 @@ ireclaim(int dev)
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
 // returns 0 if out of disk space.
+
 static uint
 bmap(struct inode *ip, uint bn)
 {
   uint addr, *a;
   struct buf *bp;
 
+  // Direct blocks
   if (bn < NDIRECT) {
     if ((addr = ip->addrs[bn]) == 0) {
       addr = balloc(ip->dev);
@@ -432,18 +434,21 @@ bmap(struct inode *ip, uint bn)
     }
     return addr;
   }
+
   bn -= NDIRECT;
 
+  // Singly-indirect blocks
   if (bn < NINDIRECT) {
-    // Load indirect block, allocating if necessary.
     if ((addr = ip->addrs[NDIRECT]) == 0) {
       addr = balloc(ip->dev);
       if (addr == 0)
         return 0;
       ip->addrs[NDIRECT] = addr;
     }
+
     bp = bread(ip->dev, addr);
     a = (uint *)bp->data;
+
     if ((addr = a[bn]) == 0) {
       addr = balloc(ip->dev);
       if (addr) {
@@ -451,6 +456,59 @@ bmap(struct inode *ip, uint bn)
         log_write(bp);
       }
     }
+
+    brelse(bp);
+    return addr;
+  }
+
+  bn -= NINDIRECT;
+
+  // Doubly-indirect blocks
+  if (bn < NINDIRECT * NINDIRECT) {
+
+    // Allocate double-indirect block if necessary
+    if ((addr = ip->addrs[NDIRECT + 1]) == 0) {
+      addr = balloc(ip->dev);
+      if (addr == 0)
+        return 0;
+      ip->addrs[NDIRECT + 1] = addr;
+    }
+
+    // Read double-indirect block
+    bp = bread(ip->dev, addr);
+    a = (uint *)bp->data;
+
+    // Calculate the two indexes
+    uint index1 = bn / NINDIRECT;
+    uint index2 = bn % NINDIRECT;
+
+    // Get or allocate singly-indirect block
+    if ((addr = a[index1]) == 0) {
+      addr = balloc(ip->dev);
+      if (addr) {
+        a[index1] = addr;
+        log_write(bp);
+      }
+    }
+
+    brelse(bp);
+
+    if (addr == 0)
+      return 0;
+
+    // Read singly-indirect block
+    bp = bread(ip->dev, addr);
+    a = (uint *)bp->data;
+
+    // Get or allocate actual data block
+    if ((addr = a[index2]) == 0) {
+      addr = balloc(ip->dev);
+      if (addr) {
+        a[index2] = addr;
+        log_write(bp);
+      }
+    }
+
     brelse(bp);
     return addr;
   }
@@ -458,15 +516,19 @@ bmap(struct inode *ip, uint bn)
   panic("bmap: out of range");
 }
 
+
 // Truncate inode (discard contents).
 // Caller must hold ip->lock.
+
 void
 itrunc(struct inode *ip)
 {
-  int i, j;
-  struct buf *bp;
-  uint *a;
+  int i, j, k;
+  struct buf *bp, *bp2;
+  uint *a, *a2;
+  uint indirect;
 
+  // Free direct blocks
   for (i = 0; i < NDIRECT; i++) {
     if (ip->addrs[i]) {
       bfree(ip->dev, ip->addrs[i]);
@@ -474,21 +536,59 @@ itrunc(struct inode *ip)
     }
   }
 
+  // Free singly-indirect blocks
   if (ip->addrs[NDIRECT]) {
     bp = bread(ip->dev, ip->addrs[NDIRECT]);
     a = (uint *)bp->data;
+
     for (j = 0; j < NINDIRECT; j++) {
       if (a[j])
         bfree(ip->dev, a[j]);
     }
+
     brelse(bp);
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
   }
 
+  // Free doubly-indirect blocks
+  if (ip->addrs[NDIRECT + 1]) {
+    bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
+    a = (uint *)bp->data;
+
+    for (j = 0; j < NINDIRECT; j++) {
+
+      // Get singly-indirect block address
+      indirect = a[j];
+
+      if (indirect) {
+        bp2 = bread(ip->dev, indirect);
+        a2 = (uint *)bp2->data;
+
+        // Free its data blocks
+        for (k = 0; k < NINDIRECT; k++) {
+          if (a2[k])
+            bfree(ip->dev, a2[k]);
+        }
+
+        brelse(bp2);
+
+        // Free singly-indirect block itself
+        bfree(ip->dev, indirect);
+      }
+    }
+
+    brelse(bp);
+
+    // Free doubly-indirect block itself
+    bfree(ip->dev, ip->addrs[NDIRECT + 1]);
+    ip->addrs[NDIRECT + 1] = 0;
+  }
+
   ip->size = 0;
   iupdate(ip);
 }
+
 
 // Copy stat information from inode.
 // Caller must hold ip->lock.
